@@ -1,0 +1,8 @@
+# 它的作用和 .gitignore有点像，只不过是告诉 Docker：build image 时，这些东西不要发进 build context。
+# 尤其 .venv 和 .git 没必要放进去。
+.venv/
+.git/
+__pycache__/
+.pytest_cache/
+*.pyc
+README.md
