@@ -1,0 +1,21 @@
+# Optional production example: configure your domain, ingress class, and TLS secret.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: tarot
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts: [tarot.example.com]
+      secretName: tarot-tls
+  rules:
+    - host: tarot.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: tarot-frontend
+                port:
+                  number: 80
