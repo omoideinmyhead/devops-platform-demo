@@ -2,3 +2,6 @@
 __pycache__/
 .pytest_cache/
 *.pyc
+.aws/
+node_modules/
+dist/
