@@ -4,7 +4,7 @@ A React + TypeScript tarot experience backed by FastAPI. Ask a question, choose 
 
 ## Run locally
 
-Requires Python 3.12+ and Node.js 24.
+Requires Python 3.14+ and Node.js 24.
 
 ```bash
 python3 -m venv .venv
