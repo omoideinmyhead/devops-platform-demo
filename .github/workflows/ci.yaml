@@ -38,17 +38,42 @@ jobs:
   containers:
     needs: [backend, frontend]
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write          # 允许往 GHCR 推镜像（只给这一个 job）
+    env:
+      # 只有"推送到 main"时才为 true；PR 和 feature 分支只构建、不推送
+      PUSH: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+      REGISTRY: ghcr.io/${{ github.repository_owner }}
     steps:
       - uses: actions/checkout@v4
       - uses: docker/setup-buildx-action@v3
-      - uses: docker/build-push-action@v6
+
+      - name: Log in to GHCR
+        if: env.PUSH == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}   # GitHub 每次运行自动生成的临时令牌，不用自己配置
+
+      - name: Build backend image
+        uses: docker/build-push-action@v6
         with:
           context: .
-          push: false
-          tags: tarot-backend:ci
-      - uses: docker/build-push-action@v6
+          push: ${{ env.PUSH == 'true' }}
+          tags: |
+            ${{ env.REGISTRY }}/tarot-backend:${{ github.sha }}
+            ${{ env.REGISTRY }}/tarot-backend:latest
+          labels: org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+
+      - name: Build frontend image
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: frontend/Dockerfile
-          push: false
-          tags: tarot-frontend:ci
+          push: ${{ env.PUSH == 'true' }}
+          tags: |
+            ${{ env.REGISTRY }}/tarot-frontend:${{ github.sha }}
+            ${{ env.REGISTRY }}/tarot-frontend:latest
+          labels: org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
