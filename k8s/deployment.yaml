@@ -1,20 +1,108 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: devops-platform-demo
+  name: tarot-backend
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app: devops-platform-demo
+      app: tarot-backend
   template:
     metadata:
       labels:
-        app: devops-platform-demo
+        app: tarot-backend
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        seccompProfile:
+          type: RuntimeDefault
       containers:
-        - name: devops-platform-demo
-          image: devops-platform-demo:latest
-          imagePullPolicy: Never
+        - name: tarot-backend
+          image: tarot-backend:dev
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000
+          env:
+            - name: READING_MODE
+              valueFrom:
+                configMapKeyRef:
+                  name: tarot-config
+                  key: READING_MODE
+            - name: OPENAI_MODEL
+              valueFrom:
+                configMapKeyRef:
+                  name: tarot-config
+                  key: OPENAI_MODEL
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: tarot-ai
+                  key: OPENAI_API_KEY
+                  optional: true
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tarot-frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: tarot-frontend
+  template:
+    metadata:
+      labels:
+        app: tarot-frontend
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 101
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: tarot-frontend
+          image: tarot-frontend:dev
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 10
+          resources:
+            requests:
+              cpu: 50m
+              memory: 32Mi
+            limits:
+              cpu: 250m
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]

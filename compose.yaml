@@ -1,0 +1,24 @@
+services:
+  tarot-backend:
+    build: .
+    environment:
+      READING_MODE: ${READING_MODE:-demo}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      READINGS_PER_MINUTE: ${READINGS_PER_MINUTE:-10}
+    ports:
+      - "127.0.0.1:8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+  tarot-frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    ports:
+      - "8080:8080"
+    depends_on:
+      tarot-backend:
+        condition: service_healthy

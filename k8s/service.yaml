@@ -1,12 +1,24 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: devops-platform-demo-service
+  name: tarot-backend
 spec:
   selector:
-    app: devops-platform-demo
+    app: tarot-backend
   ports:
-    - protocol: TCP
-      port: 80
+    - port: 8000
       targetPort: 8000
+  type: ClusterIP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tarot-frontend
+spec:
+  selector:
+    app: tarot-frontend
+  ports:
+    - port: 80
+      targetPort: 8080
+      nodePort: 30080
   type: NodePort
