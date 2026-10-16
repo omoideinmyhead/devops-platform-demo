@@ -60,15 +60,19 @@ Draws are stateless. The API validates submitted card identifiers, uniqueness, c
 
 The original Deployment/Service scaffold is retained and expanded into two backend replicas and two frontend replicas, with health probes, resource limits, and restricted container permissions. The backend is private within the cluster; NodePort 30080 exposes the frontend for local demos.
 
-Build and load these images into your local cluster using its supported image loader:
+CI publishes both images to GitHub Container Registry on every merge to `main`, tagged with the commit SHA. The deployed version is pinned in `k8s/kustomization.yaml`, so the cluster pulls immutable images straight from the registry:
 
 ```bash
-docker build -t tarot-backend:dev .
-docker build -f frontend/Dockerfile -t tarot-frontend:dev .
-kubectl apply -f k8s/configmap.yaml -f k8s/deployment.yaml -f k8s/service.yaml
+kubectl kustomize k8s/ | grep image:   # preview the rendered image tags
+kubectl apply -k k8s/
+kubectl port-forward svc/tarot-frontend 8080:80
 ```
 
-For production, replace the `:dev` images with immutable registry tags, ensure the cluster can pull them, change the frontend Service to ClusterIP, and customize `k8s/ingress.yaml` for your ingress controller, domain, and TLS secret before applying it. The ingress is intentionally excluded from the local commands.
+Then open http://localhost:8080.
+
+To deploy another version, or roll back, set `newTag` in `k8s/kustomization.yaml` to that commit's SHA and run `kubectl apply -k k8s/` again.
+
+For production, change the frontend Service to ClusterIP and customize `k8s/ingress.yaml` for your ingress controller, domain, and TLS secret before adding it to the kustomization. The ingress is intentionally excluded from the local setup.
 
 For AI mode, provision a Kubernetes Secret named `tarot-ai` with the key `OPENAI_API_KEY` through your secret management process; change `READING_MODE` in the ConfigMap to `ai` and restart the backend Deployment. Secret values are not checked into the repository.
 
@@ -82,7 +86,8 @@ cd frontend
 npm run build
 ```
 
-GitHub Actions runs backend tests, TypeScript checks, the frontend production build, and both Docker image builds on pull requests and pushes to main/feature branches. It does not publish images or deploy: registry and cluster credentials have not been configured.
+GitHub Actions runs backend tests, TypeScript checks, the frontend production build, and both Docker image builds on pull requests and pushes to main/feature branches. 
+On pushes to `main`, both images are also published to GHCR, tagged with the commit SHA and `latest`. Deployment to a cluster is not yet automated.
 
 The tests cover deck completeness, spread validation, unique draws, demo readings, rate limiting, missing credentials, and mocked AI success, refusals, malformed responses, card mismatches, timeouts, and HTTP errors. No real AI calls are needed.
 
@@ -90,4 +95,4 @@ Fonts use Google Fonts with local system fallbacks. Card art is original code-re
 
 ## Implementation validation
 
-Verified during implementation: 17 backend tests passed; the TypeScript check and production build passed; both Docker images built; an isolated Compose stack became healthy; headless Chrome completed both spread sizes and opened the 78-card library; desktop and mobile screenshots were inspected with no horizontal overflow; Kubernetes manifests passed a client-side dry-run with schema validation disabled. The temporary Compose stack was removed after verification. Live OpenAI calls and deployment to a Kubernetes cluster were not performed.
+Verified during implementation: 17 backend tests passed; the TypeScript check and production build passed; both Docker images built; an isolated Compose stack became healthy; headless Chrome completed both spread sizes and opened the 78-card library; desktop and mobile screenshots were inspected with no horizontal overflow; Kubernetes manifests passed a client-side dry-run with schema validation disabled. The temporary Compose stack was removed after verification. Live OpenAI calls were not performed. The Kubernetes manifests were deployed to a local cluster using the GHCR images.
