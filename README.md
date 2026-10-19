@@ -76,7 +76,9 @@ kubectl port-forward svc/tarot-frontend 8080:80
 
 Then open http://localhost:8080.
 
-To deploy another version, or roll back, change `newTag` in `k8s/kustomization.yaml` to that commit's SHA and merge to `main`. Argo CD picks up the change and performs a rolling update; there is no manual `kubectl apply`.
+Every merge to `main` deploys itself: CI tests and builds the images, pushes them to GHCR tagged with the commit SHA, then commits that SHA to `newTag` in `k8s/kustomization.yaml` (`Deploy <sha> [skip ci]`). Argo CD picks up the commit and rolls out the new version.
+
+To roll back, change `newTag` back to an earlier commit SHA (or `git revert` the corresponding `Deploy` commit) and push to `main`. Pushes that only touch `k8s/kustomization.yaml` skip CI, so the rollback is not overwritten by a new build.
 
 For production, change the frontend Service to ClusterIP and customize `k8s/ingress.yaml` for your ingress controller, domain, and TLS secret before adding it to the kustomization. The ingress is intentionally excluded from the local setup.
 
