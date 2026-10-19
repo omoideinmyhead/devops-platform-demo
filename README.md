@@ -62,15 +62,21 @@ The original Deployment/Service scaffold is retained and expanded into two backe
 
 CI publishes both images to GitHub Container Registry on every merge to `main`, tagged with the commit SHA. The deployed version is pinned in `k8s/kustomization.yaml`, so the cluster pulls immutable images straight from the registry:
 
+Deployment is managed with GitOps by [Argo CD](https://argo-cd.readthedocs.io/). The `tarot` Application in `argocd/application.yaml` tracks the `k8s/` directory on `main` and syncs it automatically, with pruning and self-healing enabled: the cluster always converges to what is in Git.
+
+One-time setup on a local cluster:
+
 ```bash
-kubectl kustomize k8s/ | grep image:   # preview the rendered image tags
-kubectl apply -k k8s/
+kubectl create namespace argocd
+kubectl apply -n argocd --server-side --force-conflicts \
+  -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
+kubectl apply -f argocd/application.yaml
 kubectl port-forward svc/tarot-frontend 8080:80
 ```
 
 Then open http://localhost:8080.
 
-To deploy another version, or roll back, set `newTag` in `k8s/kustomization.yaml` to that commit's SHA and run `kubectl apply -k k8s/` again.
+To deploy another version, or roll back, change `newTag` in `k8s/kustomization.yaml` to that commit's SHA and merge to `main`. Argo CD picks up the change and performs a rolling update; there is no manual `kubectl apply`.
 
 For production, change the frontend Service to ClusterIP and customize `k8s/ingress.yaml` for your ingress controller, domain, and TLS secret before adding it to the kustomization. The ingress is intentionally excluded from the local setup.
 
