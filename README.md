@@ -60,7 +60,7 @@ Draws are stateless. The API validates submitted card identifiers, uniqueness, c
 
 The original Deployment/Service scaffold is retained and expanded into two backend replicas and two frontend replicas, with health probes, resource limits, and restricted container permissions. The backend is private within the cluster; NodePort 30080 exposes the frontend for local demos.
 
-CI publishes both images to GitHub Container Registry on every merge to `main`, tagged with the commit SHA. The deployed version is pinned in `k8s/kustomization.yaml`, so the cluster pulls immutable images straight from the registry:
+CI publishes both images to GitHub Container Registry on every merge to `main`, tagged with the commit SHA. The deployed version is pinned in `k8s/kustomization.yaml`, so the cluster pulls immutable images straight from the registry.
 
 Deployment is managed with GitOps by [Argo CD](https://argo-cd.readthedocs.io/). The `tarot` Application in `argocd/application.yaml` tracks the `k8s/` directory on `main` and syncs it automatically, with pruning and self-healing enabled: the cluster always converges to what is in Git.
 
@@ -95,7 +95,7 @@ npm run build
 ```
 
 GitHub Actions runs backend tests, TypeScript checks, the frontend production build, and both Docker image builds on pull requests and pushes to main/feature branches. 
-On pushes to `main`, both images are also published to GHCR, tagged with the commit SHA and `latest`. Deployment to a cluster is not yet automated.
+On pushes to `main`, both images are also published to GHCR, tagged with the commit SHA and `latest`. After publishing, CI commits the new SHA to k8s/kustomization.yaml and Argo CD deploys it automatically.
 
 The tests cover deck completeness, spread validation, unique draws, demo readings, rate limiting, missing credentials, and mocked AI success, refusals, malformed responses, card mismatches, timeouts, and HTTP errors. No real AI calls are needed.
 

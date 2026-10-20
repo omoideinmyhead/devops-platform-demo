@@ -19,7 +19,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: tarot-backend
-          image: ghcr.io/omoideinmyhead/tarot-backend      # 原来是 tarot-backend:dev
+          image: ghcr.io/omoideinmyhead/tarot-backend
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000
@@ -82,7 +82,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: tarot-frontend
-          image: ghcr.io/omoideinmyhead/tarot-frontend     # 原来是 tarot-frontend:dev
+          image: ghcr.io/omoideinmyhead/tarot-frontend
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
