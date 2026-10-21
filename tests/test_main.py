@@ -85,3 +85,11 @@ def test_ai_provider(client, monkeypatch, result):
     assert response.status_code == (200 if result == 'success' else 503)
     if result == 'success': assert response.json()['mode'] == 'ai'
     else: assert 'test-only' not in response.text
+
+def test_metrics(client):
+    client.get('/api/cards')
+    client.get('/health')
+    body = client.get('/metrics').text
+    assert 'http_requests_total{handler="/api/cards",method="GET",status="2xx"}' in body
+    assert 'http_request_duration_seconds_bucket' in body
+    assert 'handler="/health"' not in body

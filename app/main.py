@@ -7,8 +7,12 @@ from fastapi.responses import JSONResponse
 from app.cards import CARDS, POSITIONS
 from app.models import DrawRequest, ReadingRequest, ReadingResponse
 from app.provider import ProviderError, generate_reading, mode
+from prometheus_fastapi_instrumentator import Instrumentator
 
 app = FastAPI(title='Arcana Tarot', version='1.0.0')
+# Exposes Prometheus metrics (request count, latency histogram) at /metrics.
+# /metrics and /health are excluded so scrapes and probes don't skew the numbers.
+Instrumentator(excluded_handlers=['/metrics', '/health']).instrument(app).expose(app, include_in_schema=False)
 # Per-process guard; a shared ingress limit is required for multi-replica production.
 _buckets: OrderedDict[str, list[float]] = OrderedDict()
 
