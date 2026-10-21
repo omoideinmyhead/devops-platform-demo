@@ -11,6 +11,6 @@ resources:
 # 部署哪个版本：把 deployment 里同名的镜像统一替换成这个 tag
 images:
   - name: ghcr.io/omoideinmyhead/tarot-backend
-    newTag: d1c28e4b9d0c07bd0dab43689979799163ee1e12
+    newTag: 5beb2e8cb4f795bf17a06d54ec21c6a73b16447b
   - name: ghcr.io/omoideinmyhead/tarot-frontend
-    newTag: d1c28e4b9d0c07bd0dab43689979799163ee1e12
+    newTag: 5beb2e8cb4f795bf17a06d54ec21c6a73b16447b
