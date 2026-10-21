@@ -95,7 +95,7 @@ npm run build
 ```
 
 GitHub Actions runs backend tests, TypeScript checks, the frontend production build, and both Docker image builds on pull requests and pushes to main/feature branches. 
-On pushes to `main`, both images are also published to GHCR, tagged with the commit SHA and `latest`. After publishing, CI commits the new SHA to k8s/kustomization.yaml and Argo CD deploys it automatically.
+On pushes to `main`, both images are also published to GHCR, tagged with the commit SHA and `latest`. After publishing, CI commits the new SHA to `k8s/kustomization.yaml` and Argo CD deploys it automatically.
 
 The tests cover deck completeness, spread validation, unique draws, demo readings, rate limiting, missing credentials, and mocked AI success, refusals, malformed responses, card mismatches, timeouts, and HTTP errors. No real AI calls are needed.
 

@@ -5,6 +5,7 @@ on:
     # ★ 改动 1：只改了部署版本号的推送不跑 CI（包括 CI 自己提交的版本更新、手动回滚）
     paths-ignore:
       - 'k8s/kustomization.yaml'
+      - '**.md'
   pull_request:
 permissions:
   contents: read
