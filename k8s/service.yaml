@@ -3,12 +3,12 @@ kind: Service
 metadata:
   name: tarot-backend
   labels:
-    app: tarot-backend      # 新增：ServiceMonitor 靠这个标签找到 Service
+    app: tarot-backend      # the ServiceMonitor selects this Service by label
 spec:
   selector:
     app: tarot-backend
   ports:
-    - name: http            # 新增：ServiceMonitor 按名字引用端口
+    - name: http            # the ServiceMonitor refers to this port by name
       port: 8000
       targetPort: 8000
   type: ClusterIP
