@@ -1,0 +1,12 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: tarot-backend
+spec:
+  selector:
+    matchLabels:
+      app: tarot-backend    # find Services with this label
+  endpoints:
+    - port: http            # the named port on that Service
+      path: /metrics
+      interval: 15s
