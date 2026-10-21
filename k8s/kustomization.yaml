@@ -6,6 +6,7 @@ resources:
   - configmap.yaml
   - deployment.yaml
   - service.yaml
+  - servicemonitor.yaml
 
 # 部署哪个版本：把 deployment 里同名的镜像统一替换成这个 tag
 images:
