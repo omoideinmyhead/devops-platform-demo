@@ -89,7 +89,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum(rate(http_requests_total{job=\"tarot-backend\"}[$__rate_interval]))",
+          "expr": "sum(rate(http_requests_total{job=\"tarot-backend\"}[$__rate_interval])) or vector(0)",
           "legendFormat": "__auto"
         }
       ]
@@ -240,7 +240,7 @@
       "fieldConfig": {
         "defaults": {
           "unit": "none",
-          "decimals": 2,
+          "decimals": 0,
           "color": {
             "mode": "thresholds"
           },
@@ -285,7 +285,7 @@
             "type": "prometheus",
             "uid": "${datasource}"
           },
-          "expr": "sum(up{job=\"tarot-backend\"})",
+          "expr": "sum(up{job=\"tarot-backend\"}) or vector(0)",
           "legendFormat": "__auto"
         }
       ]
