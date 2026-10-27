@@ -1,0 +1,43 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: tarot-backend
+spec:
+  groups:
+    - name: tarot-backend
+      rules:
+        - alert: TarotBackendDown
+          # absent() also fires when the series disappear entirely (e.g. 0 replicas);
+          # `sum(up) == 0` would return nothing in that case and never fire
+          expr: absent(up{job="tarot-backend"} == 1)
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: No tarot-backend replica can be scraped
+            description: Prometheus has not reached any tarot-backend pod for more than 1 minute.
+
+        - alert: TarotHighErrorRate
+          expr: |
+            sum(rate(http_requests_total{job="tarot-backend", status="5xx"}[5m]))
+              / sum(rate(http_requests_total{job="tarot-backend"}[5m]))
+              > 0.05
+          # Short enough for a demo; production setups often wait longer
+          for: 2m
+          labels:
+            severity: warning
+          annotations:
+            summary: tarot-backend 5xx ratio above 5%
+            description: '{{ $value | humanizePercentage }} of requests failed with a 5xx status over the last 5 minutes.'
+
+        - alert: TarotHighLatency
+          expr: |
+            histogram_quantile(0.95,
+              sum by (le) (rate(http_request_duration_seconds_bucket{job="tarot-backend"}[5m]))
+            ) > 0.5
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: tarot-backend p95 latency above 500ms
+            description: 'p95 latency is {{ $value | humanizeDuration }}.'

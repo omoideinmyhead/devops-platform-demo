@@ -1,16 +1,29 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
-# 要部署哪些文件。ingress.yaml 没放进来，本地集群不需要它。
+# Resources Argo CD deploys. ingress.yaml is not included: local clusters don't need it.
 resources:
   - configmap.yaml
   - deployment.yaml
   - service.yaml
   - servicemonitor.yaml
+  - prometheusrule.yaml
 
-# 部署哪个版本：把 deployment 里同名的镜像统一替换成这个 tag
+# The Grafana dashboard is kept as a plain JSON file and wrapped into a ConfigMap.
+# Grafana's sidecar loads every ConfigMap labelled grafana_dashboard=1 in the monitoring namespace.
+configMapGenerator:
+  - name: tarot-dashboard
+    namespace: monitoring
+    files:
+      - dashboards/tarot-red.json
+    options:
+      disableNameSuffixHash: true
+      labels:
+        grafana_dashboard: "1"
+
+# Deployed version. CI updates newTag to the commit SHA after every merge to main.
 images:
   - name: ghcr.io/omoideinmyhead/tarot-backend
-    newTag: 5beb2e8cb4f795bf17a06d54ec21c6a73b16447b
+    newTag: <保持 main 上现在的值>
   - name: ghcr.io/omoideinmyhead/tarot-frontend
-    newTag: 5beb2e8cb4f795bf17a06d54ec21c6a73b16447b
+    newTag: <保持 main 上现在的值>
