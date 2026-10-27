@@ -104,3 +104,42 @@ Fonts use Google Fonts with local system fallbacks. Card art is original code-re
 ## Implementation validation
 
 Verified during implementation: 17 backend tests passed; the TypeScript check and production build passed; both Docker images built; an isolated Compose stack became healthy; headless Chrome completed both spread sizes and opened the 78-card library; desktop and mobile screenshots were inspected with no horizontal overflow; Kubernetes manifests passed a client-side dry-run with schema validation disabled. The temporary Compose stack was removed after verification. Live OpenAI calls were not performed. The Kubernetes manifests were deployed to a local cluster using the GHCR images.
+
+## Monitoring
+
+[kube-prometheus-stack](https://artifacthub.io/packages/helm/prometheus-community/kube-prometheus-stack) (Prometheus, Grafana, Alertmanager) is installed by Argo CD from `argocd/monitoring.yaml`. Everything below lives in Git and is deployed with the app:
+
+- **Metrics**: the backend exposes `/metrics` (request count and latency histogram per endpoint). `k8s/servicemonitor.yaml` tells Prometheus to scrape it every 15s. `/metrics` is cluster-internal: the backend Service is ClusterIP and nginx only proxies `/api/`.
+- **Dashboard**: `k8s/dashboards/tarot-red.json` (Tarot API (RED): request rate, 5xx ratio, p95 latency, replicas up) is loaded automatically by Grafana's sidecar.
+- **Alerts** (`k8s/prometheusrule.yaml`):
+  - `TarotBackendDown`: no replica can be scraped for 1m. Uses `absent(up == 1)`, because with zero replicas the `up` series disappears entirely.
+  - `TarotHighErrorRate`: 5xx ratio above 5% for 2m
+  - `TarotHighLatency`: p95 above 500ms for 10m
+
+```bash
+kubectl apply -f argocd/monitoring.yaml
+kubectl port-forward -n monitoring svc/monitoring-grafana 3000:80
+kubectl get secret -n monitoring monitoring-grafana -o jsonpath="{.data.admin-password}" | base64 -d; echo
+```
+
+### Failure drills
+
+Both alerts were verified by breaking the running system with Argo CD auto-sync paused.
+
+**1. Backend down.** Scaled the backend to 0 replicas. `TarotBackendDown` went Pending and fired after 1 minute:
+
+<img src="docs/images/prometheus-alert-backend-down.png" alt="TarotBackendDown firing in Prometheus" width="800">
+
+This also exposed a dashboard bug: the "replicas up" panel kept showing the last healthy value after the `up` series disappeared. Fixed with `or vector(0)` (#11).
+
+**2. Bad configuration.** Set `READING_MODE=broken` with `kubectl set env`, so about half of all requests returned 503. The dashboard shows the 5xx ratio crossing the 5% threshold:
+
+<img src="docs/images/grafana-error-drill.png" alt="Grafana RED dashboard showing a 50.21% error ratio during the drill" width="800">
+
+`TarotHighErrorRate` went Pending, then fired once the condition had held for 2 minutes:
+
+<img src="docs/images/prometheus-alert-error-rate.png" alt="TarotHighErrorRate pending in Prometheus" width="800">
+
+Re-enabling auto-sync did **not** heal it by itself: the client-side merge re-added `valueFrom` without removing the manually set `value`, and the API server rejected the result. Removing the variable let Argo CD restore it from Git. Lesson: imperative `kubectl` changes can leave drift that self-heal cannot fix, which is why direct changes to the cluster should be avoided.
+
+Known limitation: the error-rate alert has no minimum-traffic guard, so a handful of failures at very low traffic can produce a high ratio.
