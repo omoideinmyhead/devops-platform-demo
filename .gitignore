@@ -9,3 +9,11 @@ dist/
 .env.*
 !.env.example
 *.tsbuildinfo
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+crash.log
+tfplan
