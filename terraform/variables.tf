@@ -32,3 +32,9 @@ variable "kubernetes_version" {
   type        = string
   default     = null
 }
+
+variable "argocd_chart_version" {
+  description = "Version of the argo-cd Helm chart (https://github.com/argoproj/argo-helm/releases)"
+  type        = string
+  default     = "9.5.17"
+}
