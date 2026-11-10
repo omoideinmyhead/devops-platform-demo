@@ -2,6 +2,42 @@
 
 A React + TypeScript tarot experience backed by FastAPI. Ask a question, choose a one-card or three-card spread, select face-down cards, reveal them, and explore a reading. Includes a searchable 78-card catalog, locally rendered symbolic SVG artwork, responsive styling, keyboard controls, and reduced-motion support.
 
+## Platform overview
+
+This repository is also a DevOps portfolio project: the app is built, tested, containerized, deployed and monitored entirely from Git.
+
+```mermaid
+flowchart TB
+    dev["Developer"] -->|"pull request"| ci
+    subgraph ci["GitHub Actions"]
+        test["Tests + frontend build"] --> build["Build images"]
+        build -->|"merge to main"| push["Push to GHCR, tag = commit SHA"]
+        push --> bump["Commit new tag to k8s/kustomization.yaml"]
+    end
+    bump --> repo[("Git repo: main")]
+    push --> ghcr[("GHCR")]
+    subgraph azure["Azure, provisioned by Terraform"]
+        subgraph aks["AKS cluster"]
+            argo["Argo CD"] --> root["root app"]
+            root --> tarot["tarot: frontend + backend"]
+            root --> mon["monitoring: Prometheus + Grafana"]
+            mon -.->|"scrapes /metrics"| tarot
+        end
+    end
+    repo -->|"polls"| argo
+    ghcr -->|"pulls images"| tarot
+```
+
+| Area | Implementation |
+|---|---|
+| CI | GitHub Actions: pytest, TypeScript build, Docker builds on every PR |
+| Delivery | Images pushed to GHCR tagged with the commit SHA; CI commits the new tag to Git |
+| Deployment | Argo CD (GitOps, app of apps) with automated sync, pruning and self-healing |
+| Infrastructure | Terraform: AKS cluster, remote state in Azure Storage, Argo CD bootstrap |
+| Observability | Prometheus + Grafana: RED dashboard and alert rules as code, verified with failure drills |
+
+Merging a pull request is the only manual step between a code change and a running deployment.
+
 ## Run locally
 
 Requires Python 3.14+ and Node.js 24.
@@ -56,6 +92,48 @@ The provider adapter uses the [OpenAI Responses API with structured outputs](htt
 
 Draws are stateless. The API validates submitted card identifiers, uniqueness, count, orientation, and spread positions; it does not prove that cards came from a prior draw. The visible deck is a selection ritual: the server randomly samples cards first, and clicks determine reveal order.
 
+## Infrastructure (Terraform on Azure)
+
+`terraform/` provisions the cloud environment and bootstraps GitOps. A single `terraform apply` goes from an empty subscription (apart from the state storage) to the running app and monitoring stack; `terraform destroy` removes all of it.
+
+- **AKS cluster** `tarot-aks` in `swedencentral`: 2 × `Standard_B2s_v2` (2 vCPU / 8 GiB), free control-plane tier, system-assigned managed identity, Azure CNI Overlay networking
+- **Remote state** in an Azure Storage account with state locking, so state survives a lost laptop and two runs can't collide. State contains cluster credentials and is never committed.
+- **Argo CD** installed with the Helm provider, plus a **root Application** (app of apps, `terraform/charts/argocd-bootstrap`) that points Argo CD at `argocd/`. Argo CD then creates `tarot` and `monitoring` from Git.
+
+Terraform owns the infrastructure and the Argo CD bootstrap; Argo CD owns everything running in the cluster. Any Application added to `argocd/` and merged to `main` is picked up without a manual `kubectl apply`.
+
+```bash
+# One-time: storage account for Terraform state (name must be globally unique)
+az group create --name tfstate-rg --location swedencentral
+az storage account create --name <unique-name> --resource-group tfstate-rg --location swedencentral \
+  --sku Standard_LRS --min-tls-version TLS1_2 --allow-blob-public-access false
+az storage container create --name tfstate --account-name <unique-name> --auth-mode key
+# Set storage_account_name in terraform/versions.tf to <unique-name>, then:
+
+cd terraform
+echo "subscription_id = \"$(az account show --query id -o tsv)\"" > terraform.tfvars
+terraform init
+terraform plan -out tfplan
+terraform apply tfplan
+az aks get-credentials --resource-group tarot-rg --name tarot-aks
+kubectl get applications -n argocd     # root, tarot and monitoring become Synced / Healthy
+```
+
+The cluster is billed per hour, so it only runs while needed: `terraform destroy` after each session, `terraform apply` to bring the whole platform back.
+
+<img src="docs/images/argocd-app-of-apps.png" alt="Argo CD root application managing the monitoring and tarot applications" width="800">
+
+The `tarot` Application and the resources it manages from `k8s/`, including the ServiceMonitor, PrometheusRule and Grafana dashboard ConfigMap:
+
+<img src="docs/images/argocd-tarot-resources.png" alt="Argo CD resource tree of the tarot application" width="800">
+
+Design notes:
+
+- **Sizing**: the free-trial subscription has a 4 vCPU quota per region, and B-series VMs were only available to it in `swedencentral`. Two 2 vCPU nodes use the whole quota while giving 16 GiB of RAM for Argo CD and the monitoring stack.
+- **Upgrades**: a surge node would exceed the quota, so the cluster is upgraded by recreating it rather than in place.
+- **Drift**: AKS fills in default node pool `upgrade_settings` after creation. They are declared explicitly in `main.tf`; otherwise every plan would try to remove them.
+- **Verified rebuild**: `terraform destroy` followed by `terraform apply` recreated the platform from scratch, with all three Argo CD applications healthy and no manual steps.
+
 ## Kubernetes
 
 The original Deployment/Service scaffold is retained and expanded into two backend replicas and two frontend replicas, with health probes, resource limits, and restricted container permissions. The backend is private within the cluster; NodePort 30080 exposes the frontend for local demos.
@@ -64,13 +142,18 @@ CI publishes both images to GitHub Container Registry on every merge to `main`, 
 
 Deployment is managed with GitOps by [Argo CD](https://argo-cd.readthedocs.io/). The `tarot` Application in `argocd/application.yaml` tracks the `k8s/` directory on `main` and syncs it automatically, with pruning and self-healing enabled: the cluster always converges to what is in Git.
 
-One-time setup on a local cluster:
+On AKS, Terraform installs Argo CD and the root Application (see above). On a local cluster such as minikube, install them by hand:
 
 ```bash
 kubectl create namespace argocd
 kubectl apply -n argocd --server-side --force-conflicts \
   -f https://raw.githubusercontent.com/argoproj/argo-cd/stable/manifests/install.yaml
-kubectl apply -f argocd/application.yaml
+kubectl apply -f argocd/application.yaml -f argocd/monitoring.yaml
+```
+
+On either cluster:
+
+```bash
 kubectl port-forward svc/tarot-frontend 8080:80
 ```
 
@@ -89,7 +172,7 @@ For AI mode, provision a Kubernetes Secret named `tarot-ai` with the key `OPENAI
 
 ## Monitoring
 
-[kube-prometheus-stack](https://artifacthub.io/packages/helm/prometheus-community/kube-prometheus-stack) (Prometheus, Grafana, Alertmanager) is installed by Argo CD from `argocd/monitoring.yaml`. Everything below lives in Git and is deployed with the app:
+[kube-prometheus-stack](https://artifacthub.io/packages/helm/prometheus-community/kube-prometheus-stack) (Prometheus, Grafana, Alertmanager) is installed by Argo CD from `argocd/monitoring.yaml` (through the root Application on AKS). Everything below lives in Git and is deployed with the app:
 
 - **Metrics**: the backend exposes `/metrics` (request count and latency histogram per endpoint). `k8s/servicemonitor.yaml` tells Prometheus to scrape it every 15s. `/metrics` is cluster-internal: the backend Service is ClusterIP and nginx only proxies `/api/`.
 - **Dashboard**: `k8s/dashboards/tarot-red.json` (Tarot API (RED): request rate, 5xx ratio, p95 latency, replicas up) is loaded automatically by Grafana's sidecar.
@@ -99,7 +182,6 @@ For AI mode, provision a Kubernetes Secret named `tarot-ai` with the key `OPENAI
   - `TarotHighLatency`: p95 above 500ms for 10m
 
 ```bash
-kubectl apply -f argocd/monitoring.yaml
 kubectl port-forward -n monitoring svc/monitoring-grafana 3000:80
 kubectl get secret -n monitoring monitoring-grafana -o jsonpath="{.data.admin-password}" | base64 -d; echo
 ```
@@ -135,7 +217,7 @@ cd frontend
 npm run build
 ```
 
-GitHub Actions runs backend tests, TypeScript checks, the frontend production build, and both Docker image builds on pull requests and pushes to main/feature branches. 
+GitHub Actions runs backend tests, TypeScript checks, the frontend production build, and both Docker image builds on pull requests and pushes to main/feature branches.
 On pushes to `main`, both images are also published to GHCR, tagged with the commit SHA and `latest`. After publishing, CI commits the new SHA to `k8s/kustomization.yaml` and Argo CD deploys it automatically.
 
 The tests cover deck completeness, spread validation, unique draws, demo readings, rate limiting, missing credentials, and mocked AI success, refusals, malformed responses, card mismatches, timeouts, and HTTP errors. No real AI calls are needed.
@@ -144,4 +226,4 @@ Fonts use Google Fonts with local system fallbacks. Card art is original code-re
 
 ## Implementation validation
 
-Verified during implementation: 17 backend tests passed; the TypeScript check and production build passed; both Docker images built; an isolated Compose stack became healthy; headless Chrome completed both spread sizes and opened the 78-card library; desktop and mobile screenshots were inspected with no horizontal overflow; Kubernetes manifests passed a client-side dry-run with schema validation disabled. The temporary Compose stack was removed after verification. Live OpenAI calls were not performed. The Kubernetes manifests were deployed to a local cluster using the GHCR images.
+Verified during implementation: 17 backend tests passed; the TypeScript check and production build passed; both Docker images built; an isolated Compose stack became healthy; headless Chrome completed both spread sizes and opened the 78-card library; desktop and mobile screenshots were inspected with no horizontal overflow; Kubernetes manifests passed a client-side dry-run with schema validation disabled. The temporary Compose stack was removed after verification. Live OpenAI calls were not performed. The Kubernetes manifests were deployed to a local cluster using the GHCR images, and the full platform was later provisioned on AKS with Terraform.
