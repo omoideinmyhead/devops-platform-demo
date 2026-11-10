@@ -27,6 +27,15 @@ resource "azurerm_kubernetes_cluster" "main" {
     node_count = var.node_count
     # The default OS disk is 128 GB; a smaller disk is cheaper and plenty here
     os_disk_size_gb = 64
+
+    # Match the defaults AKS applies on its own; leaving this block out makes
+    # every plan try to remove them. Note: a surge node would exceed the
+    # 4 vCPU quota, so upgrades are done by recreating the cluster instead.
+    upgrade_settings {
+      max_surge                     = "10%"
+      drain_timeout_in_minutes      = 0
+      node_soak_duration_in_minutes = 0
+    }
   }
 
   # AKS manages its own identity; no service principal secrets to rotate
