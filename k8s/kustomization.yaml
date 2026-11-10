@@ -24,6 +24,6 @@ configMapGenerator:
 # Deployed version. CI updates newTag to the commit SHA after every merge to main.
 images:
   - name: ghcr.io/omoideinmyhead/tarot-backend
-    newTag: 8641d91599dd01658bf7e10c886772b5aaffe498
+    newTag: 3bc148f3f446d23f508fb5a55ee576d92cb050e1
   - name: ghcr.io/omoideinmyhead/tarot-frontend
-    newTag: 8641d91599dd01658bf7e10c886772b5aaffe498
+    newTag: 3bc148f3f446d23f508fb5a55ee576d92cb050e1
